@@ -1,6 +1,5 @@
 package com.endpoint.lg.earth.kmlsync;
 
-import interactivespaces.activity.impl.BaseActivity;
 import interactivespaces.activity.impl.web.BaseRoutableRosWebServerActivity;
 import interactivespaces.service.web.server.HttpDynamicRequestHandler;
 import interactivespaces.service.web.server.HttpRequest;
@@ -10,24 +9,34 @@ import interactivespaces.service.web.server.WebServer;
 import java.net.URI;
 import java.util.Map;
 
+// http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Maps.html
+import com.google.common.collect.Maps;
+
 /**
- * A simple Interactive Spaces Java-based activity.
+ * An Activity to serve KML to Google Earth, and updates from routes.
  */
 public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
 
     /* A Map whose keys are Window slugs, and whose values are Asset Maps. */
     /* This contains the state of which URL's should display on Windows. */
-    Map<String, Map> window_map;
+    Map<String, Object> windowMap = Maps.newHashMap();
 
     /**
-     * Handler for HTTP Requests from Google Earth.
+     * Handler for HTTP GET Requests from Google Earth.
      */
     private class KMLSyncWebHandler implements HttpDynamicRequestHandler {
         @Override
         public void handle(HttpRequest request, HttpResponse response) {
             /* http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html */
             URI uri = request.getUri();
-            Map parameters = request.getUriQueryParameters();
+            Map<String, String> parameters = request.getUriQueryParameters();
+
+            // Which Earth Window is this HTTP request coming from?
+            Object clientWindowSlug = parameters.get("window_slug");//try/catch
+
+            // What Assets does this Earth Window already have loaded?
+            String clientAssetSlugList = parameters.get("asset_slug");
+
             getLog().info("Activity com.endpoint.lg.earth.kmlsync" +
                 " handle URI: " + uri.toString() +
                 " parameters: " + parameters.toString());
@@ -60,9 +69,11 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
     @Override
     public void onNewInputJson(String channelName,Map<String,Object> message) {
         getLog().info("Got message on input channel " + channelName);
-        getLog().info(message);
+        getLog().debug(message);
 
-        window_map = (Map<String, Map>) message.get("message");
+        windowMap.putAll(message);
+
+        getLog().debug("windowMap is now " + windowMap.toString());
     }
 
     @Override
