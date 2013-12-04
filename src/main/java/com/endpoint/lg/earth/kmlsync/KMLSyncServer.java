@@ -15,6 +15,18 @@ import java.util.Map;
  */
 public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
 
+    private class KMLSyncWebHandler implements HttpDynamicRequestHandler {
+        @Override
+        public void handle(HttpRequest request, HttpResponse response) {
+            /* http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html */
+            URI uri = request.getUri();
+            Map parameters = request.getUriQueryParameters();
+            getLog().info("Activity com.endpoint.lg.earth.kmlsync" +
+                " handle URI: " + uri.toString() +
+                " parameters: " + parameters.toString());
+        }
+    }
+
     @Override
     public void onActivitySetup() {
         getLog().info("Activity com.endpoint.lg.earth.kmlsync setup");
@@ -25,19 +37,7 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
         getLog().info("Activity com.endpoint.lg.earth.kmlsync startup");
 
         WebServer webserver = getWebServer();
-        webserver.addDynamicContentHandler("/", false,
-            new HttpDynamicRequestHandler() {
-                @Override
-                public void handle(HttpRequest request, HttpResponse response) {
-                    /* http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html */
-                    URI uri = request.getUri();
-                    Map parameters = request.getUriQueryParameters();
-                    getLog().info("Activity com.endpoint.lg.earth.kmlsync" +
-                        " handle URI: " + uri.toString() +
-                        " parameters: " + parameters.toString());
-                }
-            }
-        );
+        webserver.addDynamicContentHandler("/", false, new KMLSyncWebHandler());
     }
 
     @Override
