@@ -15,6 +15,13 @@ import java.util.Map;
  */
 public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
 
+    /* A Map whose keys are Window slugs, and whose values are Asset Maps. */
+    /* This contains the state of which URL's should display on Windows. */
+    Map<String, Map> window_map;
+
+    /**
+     * Handler for HTTP Requests from Google Earth.
+     */
     private class KMLSyncWebHandler implements HttpDynamicRequestHandler {
         @Override
         public void handle(HttpRequest request, HttpResponse response) {
@@ -48,6 +55,14 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
     @Override
     public void onActivityActivate() {
         getLog().info("Activity com.endpoint.lg.earth.kmlsync activate");
+    }
+
+    @Override
+    public void onNewInputJson(String channelName,Map<String,Object> message) {
+        getLog().info("Got message on input channel " + channelName);
+        getLog().info(message);
+
+        window_map = (Map<String, Map>) message.get("message");
     }
 
     @Override
