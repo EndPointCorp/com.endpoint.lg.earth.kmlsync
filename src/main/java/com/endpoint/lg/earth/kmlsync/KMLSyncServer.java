@@ -6,11 +6,17 @@ import interactivespaces.service.web.server.HttpRequest;
 import interactivespaces.service.web.server.HttpResponse;
 import interactivespaces.service.web.server.WebServer;
 
+// http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html
 import java.net.URI;
+import java.net.URLDecoder;
+import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 // http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Maps.html
 import com.google.common.collect.Maps;
+import com.google.common.collect.ListMultimap; // for GET query parsing
+import com.google.common.collect.ArrayListMultimap;
 
 /**
  * An Activity to serve KML to Google Earth, and updates from routes.
@@ -27,19 +33,47 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
     private class KMLSyncWebHandler implements HttpDynamicRequestHandler {
         @Override
         public void handle(HttpRequest request, HttpResponse response) {
-            /* http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html */
             URI uri = request.getUri();
-            Map<String, String> parameters = request.getUriQueryParameters();
+
+            getLog().debug("Activity com.endpoint.lg.earth.kmlsync" +
+                " handle URI: " + uri.toString() +
+                " parameters: " + uri.getQuery());
+
+            // GET Parameter parsing courtesy of Keith Hughes.
+            ListMultimap<String, String> params = ArrayListMultimap.create();
+
+            String rawQuery = uri.getQuery();
+            if (rawQuery != null && !rawQuery.isEmpty()) {
+              String[] components = rawQuery.split("\\&");
+              for (String component : components) {
+                int pos = component.indexOf('=');
+                 if (pos != -1) {
+                   String decode = component.substring(pos + 1);
+                   try {
+                     decode = URLDecoder.decode(decode, "UTF-8");
+                   } catch (Exception e) {
+                     // Don't care
+                   }
+                   params.put(component.substring(0, pos).trim(), decode);
+                 } else {
+                   params.put(component.trim(), "");
+                 }
+               }
+             }
 
             // Which Earth Window is this HTTP request coming from?
-            Object clientWindowSlug = parameters.get("window_slug");//try/catch
+            String clientWindowSlug = params.get("window_slug").get(0);
 
             // What Assets does this Earth Window already have loaded?
-            String clientAssetSlugList = parameters.get("asset_slug");
+            List<String> clientAssetSlugList = params.get("asset_slug");
 
-            getLog().info("Activity com.endpoint.lg.earth.kmlsync" +
-                " handle URI: " + uri.toString() +
-                " parameters: " + parameters.toString());
+            // What Assets _should_ the client have loaded?
+            ArrayList serverAssetList =
+                (ArrayList) windowMap.get(clientWindowSlug);
+
+            getLog().debug("Window " + clientWindowSlug + " should have " +
+                serverAssetList.toString());
+            //getLog().debug(serverAssetSlugList.getClass().getName());
         }
     }
 
