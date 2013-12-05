@@ -195,6 +195,7 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
       // For each asset the client should load but hasn't yet,
       for (Map<String, Object> asset : createAssetList) {
         JsonNavigator nav = new JsonNavigator(asset);
+        nav.down("fields");
 
         output.append("        <NetworkLink id=\"");
         // asset.slug goes here
