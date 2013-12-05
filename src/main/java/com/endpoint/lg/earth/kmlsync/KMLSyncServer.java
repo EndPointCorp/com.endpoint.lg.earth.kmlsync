@@ -15,6 +15,7 @@ import java.util.ArrayList;
 
 // http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Maps.html
 import com.google.common.collect.Maps;
+import com.google.common.collect.Lists;
 import com.google.common.collect.ListMultimap; // for GET query parsing
 import com.google.common.collect.ArrayListMultimap;
 
@@ -68,12 +69,45 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
             List<String> clientAssetSlugList = params.get("asset_slug");
 
             // What Assets _should_ the client have loaded?
-            ArrayList serverAssetList =
+            ArrayList<Map> serverAssetList =
                 (ArrayList) windowMap.get(clientWindowSlug);
 
-            getLog().debug("Window " + clientWindowSlug + " should have " +
-                serverAssetList.toString());
-            //getLog().debug(serverAssetSlugList.getClass().getName());
+            getLog().debug("Window " + clientWindowSlug + 
+                " has " + clientAssetSlugList.toString() +
+                " should have " + serverAssetList.toString());
+
+            // What Assets need <Create> KML entries?
+            List<Object> createAssetList = Lists.newArrayList();
+            // For each Asset the server wants the client to load,
+            for (Map<String,Map> serverAsset : serverAssetList) {
+                String serverAssetSlug = (String) serverAsset.get("fields").get("slug");
+                // If the client has not loaded this asset ...
+                if ( ! clientAssetSlugList.contains(serverAssetSlug) ) {
+                    // ... add it to the list needing <Create> elements.
+                    createAssetList.add(serverAsset);
+                }
+            }
+
+            // Which Assets need <Delete> KML entries?
+            List<String> deleteAssetSlugList = Lists.newArrayList();
+            // For each Asset the client has loaded,
+            for (String clientAssetSlug : clientAssetSlugList) {
+                // Search for an Asset with this slug on the Server side.
+                // (I'm sure there's a better method for this.)
+                boolean haveFoundMatch = false;
+                for (Map<String,Object> serverAsset : serverAssetList) {
+                    if (clientAssetSlug.equals(serverAsset.get("slug"))) {
+                        haveFoundMatch = true;
+                    }
+                }
+                if ( ! haveFoundMatch ) {
+                    deleteAssetSlugList.add(clientAssetSlug);
+                }
+            }
+
+            // Begin rendering the KML for the HTTP Response.
+            getLog().debug("Create list: " + createAssetList.toString());
+            getLog().debug("Delete list: " + deleteAssetSlugList.toString());
         }
     }
 
