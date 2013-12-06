@@ -39,12 +39,17 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
   Map<String, List<Map<String, Object>>> windowAssetMap = Maps.newHashMap();
 
   /**
-   * Configuration parameter containing the route to the KML Update resource.
+   * Configuration parameters containing the route to the KML Update resource.
    */
   public static final String CONFIGURATION_PROPERTY_KML_UPDATE_PATH =
       "lg.earth.kmlsyncserver.updatePath";
   public static final String CONFIGURATION_PROPERTY_KML_MASTER_PATH =
       "lg.earth.kmlsyncserver.masterPath";
+  /**
+   * Configuration parameter containing the URL prefix for the asset files.
+   */
+  public static final String CONFIGURATION_PROPERTY_KML_ASSET_PREFIX =
+      "lg.earth.kmlsyncserver.assetPrefix";
 
   /**
    * Assembled URI's for Google Earth.
@@ -60,6 +65,11 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
   int KMLURIPort = -1;
   String KMLMasterURIPath = new String();
   String KMLUpdateURIPath = new String();
+
+  /**
+   * URI Prefix for asset file storage.
+   */
+  String KMLAssetURIPrefix = new String();
 
   /**
    * Handler for HTTP GET Requests from Google Earth.
@@ -117,6 +127,8 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
         CONFIGURATION_PROPERTY_KML_UPDATE_PATH);
     KMLMasterURIPath = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_MASTER_PATH);
+    KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
 
     WebServer webserver = getWebServer();
 
@@ -329,7 +341,7 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
 
         output.append("          <Link><href>");
         // asset.storage goes here
-        output.append(nav.getString("storage"));
+        output.append(KMLAssetURIPrefix + nav.getString("storage"));
         output.append("</href></Link>\n");
 
         output.append("        </NetworkLink>\n");
