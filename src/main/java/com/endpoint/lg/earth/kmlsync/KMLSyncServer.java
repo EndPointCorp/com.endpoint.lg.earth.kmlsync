@@ -21,6 +21,7 @@ import com.endpoint.lg.support.message.MessageWrapper;
 import java.io.OutputStream;
 // http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.util.List;
 import java.util.Map;
@@ -38,16 +39,71 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
   Map<String, List<Map<String, Object>>> windowAssetMap = Maps.newHashMap();
 
   /**
+   * Configuration parameter containing the route to the KML Update resource.
+   */
+  public static final String CONFIGURATION_PROPERTY_KML_UPDATE_PATH =
+      "lg.earth.kmlsyncserver.updatePath";
+  public static final String CONFIGURATION_PROPERTY_KML_MASTER_PATH =
+      "lg.earth.kmlsyncserver.masterPath";
+
+  /**
+   * Assembled URI's for Google Earth.
+   */
+  String KMLMasterURI = new String();
+  String KMLUpdateURI = new String();
+
+  /**
+   * Components of those assembled URI's.
+   */
+  String KMLURIScheme = "http";
+  String KMLURIHost = new String();
+  int KMLURIPort = -1;
+  String KMLMasterURIPath = new String();
+  String KMLUpdateURIPath = new String();
+
+  /**
    * Handler for HTTP GET Requests from Google Earth.
    *
    * KML Resources:
    * https://developers.google.com/kml/documentation/kml_tut#network_links
    * https://developers.google.com/kml/documentation/updates
    */
-  private class KMLSyncWebHandler implements HttpDynamicRequestHandler {
+  private class KMLUpdateWebHandler implements HttpDynamicRequestHandler {
     @Override
     public void handle(HttpRequest request, HttpResponse response) {
-      handleKmlSyncRequest(request, response);
+      handleKmlUpdateRequest(request, response);
+    }
+  }
+
+  /**
+   * Handler for HTTP GET Requests for master.kml from Google Earth.
+   */
+  private class KMLMasterWebHandler implements HttpDynamicRequestHandler {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response) {
+
+      // KML MIME Type
+      // See https://developers.google.com/kml/documentation/kml_tut#kml_server
+      response.setContentType("application/vnd.google-earth.kml+xml");
+      response.setResponseCode(200); //OK
+
+      OutputStream outputStream = response.getOutputStream();
+
+      StringBuilder output = new StringBuilder();
+
+      output.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      output.append("    <kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\" xmlns:kml=\"http://www.opengis.net/kml/2.2\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
+      output.append("    <Document id=\"master\">\n");
+      output.append("    </Document>\n");
+      output.append("</kml>\n");
+
+      // Write the HTTP Response to the client.
+      try {
+        outputStream.write(output.toString().getBytes());
+      } catch (Exception e) {
+        getLog().error("Error writing HTTP Response", e);
+        response.setResponseCode(HttpResponseCode.BAD_REQUEST);
+      }
     }
   }
 
@@ -55,8 +111,59 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
   public void onActivityStartup() {
     getLog().info("Activity com.endpoint.lg.earth.kmlsync startup");
 
+    KMLURIHost = getConfiguration().getRequiredPropertyString(
+        "interactivespaces.host");
+    KMLUpdateURIPath = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_UPDATE_PATH);
+    KMLMasterURIPath = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_MASTER_PATH);
+
     WebServer webserver = getWebServer();
-    webserver.addDynamicContentHandler("/", false, new KMLSyncWebHandler());
+
+    KMLURIPort = webserver.getPort();
+
+    webserver.addDynamicContentHandler(
+        KMLUpdateURIPath,
+        false,
+        new KMLUpdateWebHandler()
+    );
+
+    webserver.addDynamicContentHandler(
+        KMLMasterURIPath,
+        false,
+        new KMLMasterWebHandler()
+    );
+
+    // Assemble and log the URI's where these services are available.
+    try {
+      KMLMasterURI = new URI(   // seven-argument constructor
+        KMLURIScheme,     // scheme
+        null,             // userInfo
+        KMLURIHost,       // host
+        KMLURIPort,       // port (type int!)
+        KMLMasterURIPath, // path
+        null,             // query
+        null              // fragment
+      ).toString();
+      getLog().info("KML Sync Master at " + KMLMasterURI);
+    } catch (URISyntaxException e) {
+      getLog().error("Could not assemble KML Master URI from config", e);
+    }
+
+    try {
+      KMLUpdateURI = new URI(
+        KMLURIScheme,     // scheme
+        null,             // userInfo
+        KMLURIHost,       // host
+        KMLURIPort,       // port (type int!)
+        KMLUpdateURIPath, // path
+        null,             // query
+        null              // fragment
+      ).toString();
+      getLog().info("KML Sync Update at " + KMLUpdateURI);
+    } catch (URISyntaxException e) {
+      getLog().error("Could not assemble KML Update URI from config", e);
+    }
   }
 
   @Override
@@ -92,7 +199,7 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
    * @param response
    *          the HTTP response
    */
-  private void handleKmlSyncRequest(HttpRequest request, HttpResponse response) {
+  private void handleKmlUpdateRequest(HttpRequest request, HttpResponse response) {
     URI uri = request.getUri();
 
     getLog().debug(
@@ -100,6 +207,11 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
 
     // GET Parameter parsing courtesy of Keith Hughes.
     ListMultimap<String, String> params = ArrayListMultimap.create();
+
+    // KML MIME Type
+    // See https://developers.google.com/kml/documentation/kml_tut#kml_server
+    response.setContentType("application/vnd.google-earth.kml+xml");
+    response.setResponseCode(200); //OK
 
     String rawQuery = uri.getQuery();
     if (rawQuery != null && !rawQuery.isEmpty()) {
@@ -132,6 +244,11 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
       serverAssetList = windowAssetMap.get(clientWindowSlug);
     }
 
+    // If this Window wasn't found in the list, use an empty list.
+    if ( serverAssetList == null ) {
+      serverAssetList = Lists.newArrayList();
+    }
+
     getLog().debug("Window " + clientWindowSlug + " has " + clientAssetSlugList + " should have " + serverAssetList);
 
     // What Assets need <Create> KML entries?
@@ -154,7 +271,9 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
     // This will see all the ones the server requires and removes them from the
     // delete list. All that will be left is the ones to delete.
     for (Map<String, Object> serverAsset : serverAssetList) {
-      deleteAssetSlugList.remove(serverAsset.get("slug"));
+      JsonNavigator nav = new JsonNavigator(serverAsset);
+      String serverAssetSlug = nav.down("fields").getString("slug");
+      deleteAssetSlugList.remove(serverAssetSlug);
     }
 
     // Begin rendering the KML for the HTTP Response.
@@ -187,6 +306,7 @@ public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
     output.append("  <Update>\n");
     output.append("    <targetHref>");
     // URL to master.kml goes here.
+    output.append(KMLMasterURI);
     output.append("</targetHref>\n");
 
     // If there are any assets the client should load but hasn't yet,
