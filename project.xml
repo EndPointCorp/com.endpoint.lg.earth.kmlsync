@@ -1,10 +1,15 @@
 <?xml version="1.0"?>
 <project type="activity" builder="java">
-    <name>Google Earth KML NetworkLinkUpdate Service</name>
-    <description>
+  <name>Google Earth KML NetworkLinkUpdate Service</name>
+  <description>
 KML is a file format used to display geographic data in Google Earth.  KML NetworkLinks can fetch new KML from an HTTP server such as this activity provides.  Each Google Earth Window is identified with a "slug" string, and this activity maintains a list of URL's that each Window should have loaded.
-    </description>
+  </description>
 
-    <identifyingName>com.endpoint.lg.earth.kmlsync</identifyingName>
-    <version>1.0.0</version>
+  <identifyingName>com.endpoint.lg.earth.kmlsync</identifyingName>
+  <version>1.0.0</version>
+
+  <deployments>
+    <deployment type="testdeploy" location="${deployment.test.deploy}" />
+    <deployment type="testimport" location="${deployment.test.import}" />
+  </deployments>
 </project>
