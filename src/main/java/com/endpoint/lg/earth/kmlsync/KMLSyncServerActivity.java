@@ -16,6 +16,9 @@
 
 package com.endpoint.lg.earth.kmlsync;
 
+import com.endpoint.lg.support.message.MessageTypes;
+import com.endpoint.lg.support.message.MessageWrapper;
+
 import interactivespaces.activity.impl.web.BaseRoutableRosWebServerActivity;
 import interactivespaces.service.web.HttpResponseCode;
 import interactivespaces.service.web.server.HttpDynamicRequestHandler;
@@ -31,9 +34,6 @@ import com.google.common.collect.Lists;
 // http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Maps.html
 import com.google.common.collect.Maps;
 
-import com.endpoint.lg.support.message.MessageTypes;
-import com.endpoint.lg.support.message.MessageWrapper;
-
 import java.io.OutputStream;
 // http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html
 import java.net.URI;
@@ -46,7 +46,7 @@ import java.util.Set;
 /**
  * An Activity to serve KML to Google Earth, and updates from routes.
  */
-public class KMLSyncServer extends BaseRoutableRosWebServerActivity {
+public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
   /**
    * A Map whose keys are Window slugs, and whose values are Asset Maps. This
