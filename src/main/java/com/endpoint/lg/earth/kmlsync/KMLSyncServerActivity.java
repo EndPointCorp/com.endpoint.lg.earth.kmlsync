@@ -26,6 +26,7 @@ import interactivespaces.service.web.server.HttpRequest;
 import interactivespaces.service.web.server.HttpResponse;
 import interactivespaces.service.web.server.WebServer;
 import interactivespaces.util.data.json.JsonNavigator;
+import interactivespaces.util.data.json.JsonMapper;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ArrayListMultimap;
@@ -40,6 +41,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,6 +55,11 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    * contains the state of which URL's should display on Windows.
    */
   Map<String, List<Map<String, Object>>> windowAssetMap = Maps.newHashMap();
+    /*
+     * Assets are Maps. The top level is one key called "fields", pointing to
+     * another hash. This second hash contains three keys: "slug", "title", and
+     * "storage"
+     */
 
   /**
    * Configuration parameters containing the route to the KML Update resource.
@@ -61,6 +68,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       "lg.earth.kmlsyncserver.updatePath";
   public static final String CONFIGURATION_PROPERTY_KML_MASTER_PATH =
       "lg.earth.kmlsyncserver.masterPath";
+  public static final String CONFIGURATION_PROPERTY_KML_MODIFY_PATH =
+      "lg.earth.kmlsyncserver.modifyPath";
   /**
    * Configuration parameter containing the URL prefix for the asset files.
    */
@@ -81,6 +90,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   int KMLURIPort = -1;
   String KMLMasterURIPath = new String();
   String KMLUpdateURIPath = new String();
+  String KMLModifyURIPath = new String();
 
   /**
    * URI Prefix for asset file storage.
@@ -98,6 +108,44 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     @Override
     public void handle(HttpRequest request, HttpResponse response) {
       handleKmlUpdateRequest(request, response);
+    }
+  }
+
+  /**
+   * Handler for HTTP GET Requests to add or remove assets from windows
+   * XXX BOOKMARK
+   */
+  private class KMLModifyWebHandler implements HttpDynamicRequestHandler {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response) {
+      ArrayListMultimap<String, String> params = getParams(request.getUri().getQuery());
+      OutputStream outputStream = response.getOutputStream();
+      ArrayListMultimap<String, String> result = handleCommand(params);
+      StringBuilder output = new StringBuilder();
+
+      output.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      output.append("    <kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\" xmlns:kml=\"http://www.opengis.net/kml/2.2\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
+      output.append("    <Document id=\"master\">\n");
+      output.append("    </Document>\n");
+      output.append("</kml>\n");
+
+      response.setContentType("text/html");
+      for (String s : result.get("log")) {
+        getLog().info("Command result: " + s);
+        output.append("<p>" + s + "</p>\n");
+      }
+      if (result.containsKey("warning")) {
+        output.append("Warning");
+      }
+      response.setResponseCode(200); //OK
+
+      // Write the HTTP Response to the client.
+      try {
+        outputStream.write(output.toString().getBytes());
+      } catch (Exception e) {
+        getLog().error("Error writing HTTP Response", e);
+        response.setResponseCode(HttpResponseCode.BAD_REQUEST);
+      }
     }
   }
 
@@ -143,6 +191,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         CONFIGURATION_PROPERTY_KML_UPDATE_PATH);
     KMLMasterURIPath = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_MASTER_PATH);
+    KMLModifyURIPath = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_MODIFY_PATH);
     KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
 
@@ -160,6 +210,12 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         KMLMasterURIPath,
         false,
         new KMLMasterWebHandler()
+    );
+
+    webserver.addDynamicContentHandler(
+        KMLModifyURIPath,
+        false,
+        new KMLModifyWebHandler()
     );
 
     // Assemble and log the URI's where these services are available.
@@ -220,31 +276,14 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   }
 
   /**
-   * A dynamic HTTP request has come in for a KML Sync.
-   *
-   * @param request
-   *          the HTTP request
-   * @param response
-   *          the HTTP response
+   * Parses parameters from a request URI
    */
-  private void handleKmlUpdateRequest(HttpRequest request, HttpResponse response) {
-    URI uri = request.getUri();
-
-    getLog().debug(
-        String.format("Activity com.endpoint.lg.earth.kmlsync handle URI: %s parameters: %s", uri, uri.getQuery()));
-
-    // GET Parameter parsing courtesy of Keith Hughes.
-    ListMultimap<String, String> params = ArrayListMultimap.create();
-
-    // KML MIME Type
-    // See https://developers.google.com/kml/documentation/kml_tut#kml_server
-    response.setContentType("application/vnd.google-earth.kml+xml");
-    response.setResponseCode(200); //OK
-
-    String rawQuery = uri.getQuery();
+  private ArrayListMultimap<String, String> getParams(String rawQuery) {
+    ArrayListMultimap<String, String> params = ArrayListMultimap.create();
     if (rawQuery != null && !rawQuery.isEmpty()) {
       String[] components = rawQuery.split("\\&");
       for (String component : components) {
+        getLog().warn("Found component " + component);
         int pos = component.indexOf('=');
         if (pos != -1) {
           String decode = component.substring(pos + 1);
@@ -259,9 +298,121 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         }
       }
     }
+    return params;
+  }
+
+  /**
+   * Checks a parameters ArrayListMultimap for required keys, and returns false
+   * if one of them isn't found.
+   */
+  private boolean hasRequiredKeys(ArrayListMultimap params, String[] reqd) {
+    for (String s : reqd) {
+        if (!params.containsKey(s)) {
+            return false;
+        }
+    }
+    return true;
+  }
+
+  /**
+   * Handles commands received either via GET requests, JSON, or ROS messages
+   * XXX BOOKMARK
+   */
+  private ArrayListMultimap<String, String> handleCommand(ArrayListMultimap<String, String> params) {
+    ArrayListMultimap<String, String> result = ArrayListMultimap.create();
+    String[] requiredKeys = { "command", "window_slug" };
+    String command, slug;
+    JsonMapper jm = new JsonMapper();
+
+    if (!hasRequiredKeys(params, requiredKeys)) {
+        result.put("log", "Didn't find all required keys (command and window_slug) in parameter map");
+        result.put("warning", "t");
+        return result;
+    };
+
+    command = params.get("command").get(0);
+    slug = params.get("window_slug").get(0);
+    result.put("log", "Slug: " + slug + "; Command: " + command);
+    if (command.equals("add")) {
+        if (params.containsKey("asset")) {
+            List<Map<String, Object>> assets;
+            if (windowAssetMap.containsKey(slug)) {
+                synchronized (windowAssetMap) {
+                    assets = windowAssetMap.get(slug);
+                }
+            }
+            else {
+                assets = new ArrayList<Map<String, Object>>();
+            }
+            for (String s : params.get("asset")) {
+
+                Map<String, Object> asset = jm.parseObject(s);
+                result.put("log", "Adding asset " + s);
+                assets.add(asset);
+            }
+            synchronized (windowAssetMap) {
+                windowAssetMap.put(slug, assets);
+            }
+        }
+        else {
+            result.put("log", "No asset supplied to add command");
+            result.put("warning", "t");
+        }
+    }
+    else if (command.equals("delete")) {
+    }
+    else if (command.equals("list")) {
+        List<Map<String, Object>> assets;
+        if (windowAssetMap.containsKey(slug)) {
+            synchronized (windowAssetMap) {
+                assets = windowAssetMap.get(slug);
+            }
+            for (Map<String, Object> m : assets) {
+                result.put("log", "Asset: " + m.toString());
+            }
+        }
+        else {
+            result.put("log", "Cannot find window_slug " + slug);
+        }
+    }
+    else {
+        result.put("log", "Unknown command \"" + command + "\"");
+        result.put("warning", "t");
+    }
+    return result;
+  }
+
+  /**
+   * A dynamic HTTP request has come in for a KML Sync.
+   *
+   * @param request
+   *          the HTTP request
+   * @param response
+   *          the HTTP response
+   */
+  private void handleKmlUpdateRequest(HttpRequest request, HttpResponse response) {
+    URI uri = request.getUri();
+    getLog().debug(
+        String.format("Activity com.endpoint.lg.earth.kmlsync handle URI: %s parameters: %s", uri, uri.getQuery()));
+
+    // GET Parameter parsing courtesy of Keith Hughes.
+    ArrayListMultimap<String, String> params = getParams(uri.getQuery());
+    //ArrayListMultimap.create();
+
+    // KML MIME Type
+    // See https://developers.google.com/kml/documentation/kml_tut#kml_server
+    response.setContentType("application/vnd.google-earth.kml+xml");
+    response.setResponseCode(200); //OK
+
+    if (! params.containsKey("window_slug")) {
+        getLog().error("No window slug provided.");
+        response.setResponseCode(HttpResponseCode.BAD_REQUEST);
+        return;
+    }
 
     // Which Earth Window is this HTTP request coming from?
     String clientWindowSlug = params.get("window_slug").get(0);
+    getLog().info("Checking window slug " + clientWindowSlug);
 
     // What Assets does this Earth Window already have loaded?
     List<String> clientAssetSlugList = params.get("asset_slug");
@@ -277,7 +428,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       serverAssetList = Lists.newArrayList();
     }
 
-    getLog().debug("Window " + clientWindowSlug + " has " + clientAssetSlugList + " should have " + serverAssetList);
+    /* XXX Change info() back to debug() */
+    getLog().info("Window " + clientWindowSlug + " has " + clientAssetSlugList + " should have " + serverAssetList);
 
     // What Assets need <Create> KML entries?
     List<Map<String, Object>> createAssetList = Lists.newArrayList();
