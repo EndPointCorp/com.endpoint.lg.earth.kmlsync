@@ -35,12 +35,18 @@ import com.google.common.collect.Lists;
 // http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Maps.html
 import com.google.common.collect.Maps;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.OutputStream;
 // http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
@@ -56,8 +62,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    */
   Map<String, List<Map<String, Object>>> windowAssetMap = Maps.newHashMap();
     /*
-     * Assets are Maps. The top level is one key called "fields", pointing to
-     * another hash. This second hash contains three keys: "slug", "title", and
+     * Assets are Maps. Each contains three keys: "slug", "title", and
      * "storage"
      */
 
@@ -70,6 +75,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       "lg.earth.kmlsyncserver.masterPath";
   public static final String CONFIGURATION_PROPERTY_KML_MODIFY_PATH =
       "lg.earth.kmlsyncserver.modifyPath";
+  public static final String CONFIGURATION_PROPERTY_KML_INDEX_PATH =
+      "lg.earth.kmlsyncserver.indexPath";
   /**
    * Configuration parameter containing the URL prefix for the asset files.
    */
@@ -91,6 +98,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   String KMLMasterURIPath = new String();
   String KMLUpdateURIPath = new String();
   String KMLModifyURIPath = new String();
+  String KMLIndexURIPath = new String();
 
   /**
    * URI Prefix for asset file storage.
@@ -112,8 +120,46 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   }
 
   /**
+   * Index page, to make it easier to control stuff
+   */
+  private class KMLIndexWebHandler implements HttpDynamicRequestHandler {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response) {
+      OutputStream oos = response.getOutputStream();
+      File dataFile;
+      InputStream is;
+
+      byte[] buf = new byte[8192];
+
+      dataFile = getActivityFilesystem().getInstallFile("index.html");
+      try {
+        is = new FileInputStream(dataFile);
+      }
+      catch (FileNotFoundException e) {
+        response.setResponseCode(500);
+        getLog().warn(e);
+        return;
+      }
+
+      int c = 0;
+
+      try {
+        while ((c = is.read(buf, 0, buf.length)) > 0) {
+            oos.write(buf, 0, c);
+            oos.flush();
+        }
+
+        is.close();
+      }
+      catch (IOException i) {
+        response.setResponseCode(500);
+        getLog().error(i);
+      }
+    }
+  }
+
+  /**
    * Handler for HTTP GET Requests to add or remove assets from windows
-   * XXX BOOKMARK
    */
   private class KMLModifyWebHandler implements HttpDynamicRequestHandler {
     @Override
@@ -193,6 +239,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         CONFIGURATION_PROPERTY_KML_MASTER_PATH);
     KMLModifyURIPath = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_MODIFY_PATH);
+    KMLIndexURIPath = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_INDEX_PATH);
     KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
 
@@ -216,6 +264,12 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         KMLModifyURIPath,
         false,
         new KMLModifyWebHandler()
+    );
+
+    webserver.addDynamicContentHandler(
+        KMLIndexURIPath,
+        false,
+        new KMLIndexWebHandler()
     );
 
     // Assemble and log the URI's where these services are available.
@@ -347,8 +401,14 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
             for (String s : params.get("asset")) {
 
                 Map<String, Object> asset = jm.parseObject(s);
-                result.put("log", "Adding asset " + s);
-                assets.add(asset);
+                if (asset.containsKey("slug") && asset.containsKey("title") && asset.containsKey("storage")) {
+                    result.put("log", "Adding asset " + s);
+                    assets.add(asset);
+                }
+                else {
+                    result.put("log", "Badly formatted asset: " + s);
+                    result.put("warning", "t");
+                }
             }
             synchronized (windowAssetMap) {
                 windowAssetMap.put(slug, assets);
@@ -360,6 +420,45 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         }
     }
     else if (command.equals("delete")) {
+        if (params.containsKey("asset")) {
+            List<Map<String, Object>> assets;
+            boolean found = false;
+
+            if (windowAssetMap.containsKey(slug)) {
+                synchronized (windowAssetMap) {
+                    assets = windowAssetMap.get(slug);
+                }
+                result.put("log", "Found assets for window: " + assets);
+                ListIterator<Map<String, Object>> li = assets.listIterator();
+                Map<String, Object> m;
+                while (li.hasNext()) {
+                    m = li.next();
+                    if (m.containsKey("slug")) {
+                        result.put("log", "Searching for slug to delete. Found \"" + m.get("slug") + "\"");
+                        if ( m.get("slug").toString().equals(params.get("asset").get(0))) {
+                            li.remove();
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (found) {
+                    synchronized (windowAssetMap) {
+                        windowAssetMap.put(slug, assets);
+                    }
+                }
+                else {
+                    result.put("log", "Didn't find asset slug " + params.get("asset").get(0) + " for window " + slug);
+                }
+            }
+            else {
+                result.put("log", "Window slug " + slug + " has no assets");
+            }
+        }
+        else {
+            result.put("log", "No asset supplied to delete command");
+            result.put("warning", "t");
+        }
     }
     else if (command.equals("list")) {
         List<Map<String, Object>> assets;
@@ -436,7 +535,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     // For each Asset the server wants the client to load,
     for (Map<String, Object> serverAsset : serverAssetList) {
       JsonNavigator nav = new JsonNavigator(serverAsset);
-      String serverAssetSlug = nav.down("fields").getString("slug");
+      String serverAssetSlug = nav.getString("slug");
 
       // If the client has not loaded this asset ...
       if (!clientAssetSlugList.contains(serverAssetSlug)) {
@@ -452,7 +551,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     // delete list. All that will be left is the ones to delete.
     for (Map<String, Object> serverAsset : serverAssetList) {
       JsonNavigator nav = new JsonNavigator(serverAsset);
-      String serverAssetSlug = nav.down("fields").getString("slug");
+      String serverAssetSlug = nav.getString("slug");
       deleteAssetSlugList.remove(serverAssetSlug);
     }
 
@@ -477,7 +576,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     List<String> cookies = Lists.newArrayList();
     for (Map<String, Object> serverAsset : serverAssetList) {
       JsonNavigator nav = new JsonNavigator(serverAsset);
-      String serverAssetSlug = nav.down("fields").getString("slug");
+      String serverAssetSlug = nav.getString("slug");
       cookies.add("asset_slug=" + serverAssetSlug);
     }
     output.append(joiner.join(cookies));
@@ -495,7 +594,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       // For each asset the client should load but hasn't yet,
       for (Map<String, Object> asset : createAssetList) {
         JsonNavigator nav = new JsonNavigator(asset);
-        nav.down("fields");
+        //nav.down("fields");
 
         output.append("        <NetworkLink id=\"");
         // asset.slug goes here
