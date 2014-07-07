@@ -1,0 +1,100 @@
+<html>
+<head>
+    <script type="text/javascript">
+    var window_slug, add_asset, delete_asset, cmd_type, frame, sck;
+    function initialize() {
+        cmd_type     = document.getElementById("cmd_type");
+        window_slug  = document.getElementById("window_slug");
+        add_asset    = document.getElementById("add_asset");
+        delete_asset = document.getElementById("delete_asset");
+        frame        = document.getElementById("myframe");
+        sck          = new WebSocket("ws://" + window.location.host + "/websocket");
+    }
+
+    function add() {
+        if (cmd_type.value === "JSON") {
+            var a = {
+                commands: [{
+                command: 'add',
+                window_slug: window_slug.value,
+                asset: JSON.parse(add_asset.value)
+            }]};
+            sck.send(JSON.stringify(a));
+        }
+        else {
+            frame.src = "http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() +
+                    "&command=add&asset=" + add_asset.value.trim());
+        }
+    }
+
+    function del() {
+        if (cmd_type.value === "JSON") {
+            var a = {
+                commands: [{
+                command: 'delete',
+                window_slug: window_slug.value,
+                asset_slug: delete_asset.value
+            }]};
+            sck.send(JSON.stringify(a));
+        }
+        else {
+            frame.src = "http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() +
+                    "&command=delete&asset_slug=" + delete_asset.value.trim());
+        }
+    }
+
+    function list() {
+        if (cmd_type.value === "JSON") {
+            var a = {
+                commands: [{
+                command: 'list',
+                window_slug: window_slug.value
+            }]};
+            sck.send(JSON.stringify(a));
+        }
+        else {
+            frame.src = "http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() + 
+                    "&command=list");
+        }
+    }
+    </script>
+</head>
+<body onLoad="initialize()">
+    <h1>KMLSync Command Test Panel</h1>
+    <div>
+    <h2>Command type</h2>
+    <select id="cmd_type">
+        <option>HTTP</option>
+        <option>JSON</option>
+    </select>
+    </div>
+    <div>
+    Window slug: <input id="window_slug" value="fred" /></br>
+    </div>
+    <div>
+    <h2>Add new asset(s)</h2>
+        <textarea id="add_asset" cols="40" rows="10">
+  {
+    "title": "this is the title",
+    "slug": "myslug",
+    "storage": "this is the storage"
+  }
+        </textarea>
+        <button onClick="add()">Click to add</button>
+    </div>
+    <div>
+    <h2>Delete asset</h2>
+        Asset slug: <input id="delete_asset" value="myslug" />
+        <button onClick="del()">Click to delete</button>
+    </div>
+    <div>
+    <h2>List assets</h2>
+        <button onClick="list()">Click to list assets on window</button>
+    </div>
+    <hr />
+    <iframe id="myframe" style="width: 100%; height: 400px, border: 1px solid" />
+</bodY>
+</html>

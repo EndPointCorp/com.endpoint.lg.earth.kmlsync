@@ -166,14 +166,34 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     public void handle(HttpRequest request, HttpResponse response) {
       ArrayListMultimap<String, String> params = getParams(request.getUri().getQuery());
       OutputStream outputStream = response.getOutputStream();
-      ArrayListMultimap<String, String> result = handleCommand(params);
       StringBuilder output = new StringBuilder();
+      Map<String, Object> asset = null;
 
-      output.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-      output.append("    <kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\" xmlns:kml=\"http://www.opengis.net/kml/2.2\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
-      output.append("    <Document id=\"master\">\n");
-      output.append("    </Document>\n");
-      output.append("</kml>\n");
+      String[] requiredKeys = { "command", "window_slug" };
+      if (!hasRequiredKeys(params, requiredKeys)) {
+          output.append("<p>Didn't find all required keys ('command' and 'window_slug') in parameters</p>");
+      };
+
+      if (params.containsKey("asset")) {
+          JsonMapper jm = new JsonMapper();
+          asset = (Map<String, Object>) jm.parseObject(params.get("asset").get(0));
+          if (!(asset.containsKey("title") && asset.containsKey("slug") && asset.containsKey("storage"))) {
+              output.append("<p>Badly formatted asset. Requires title, slug, and storage keys</p>");
+          }
+      }
+
+      ArrayListMultimap<String, String> result = handleCommand(
+            params.get("command").get(0),
+            params.get("window_slug").get(0),
+            ( params.containsKey("asset_slug") ? params.get("asset_slug").get(0) : null ),
+            asset
+      );
+
+//      output.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+//      output.append("    <kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\" xmlns:kml=\"http://www.opengis.net/kml/2.2\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
+//      output.append("    <Document id=\"master\">\n");
+//      output.append("    </Document>\n");
+//      output.append("</kml>\n");
 
       response.setContentType("text/html");
       for (String s : result.get("log")) {
@@ -305,7 +325,37 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   }
 
   @Override
+  public void onWebSocketReceive(String channelName, Object d) {
+    getLog().info("Received something on the websocket channel: " + d);
+    Map<String, Object> msg = Maps.newHashMap();
+    msg.put(MessageWrapper.MESSAGE_FIELD_TYPE, MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS);
+    msg.put(MessageWrapper.MESSAGE_FIELD_DATA, d);
+    sendOutputJson("toupdate", msg);
+  }
+
+  /*
+   * Expects a map of this form:
+   * {
+   *   MessageWrapper.MESSAGE_FIELD_TYPE = MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS
+   *   MessageWrapper.MESSAGE_FIELD_DATA = {
+   *     'commands' = [
+   *       {
+   *         'command'     = ('add'|'delete'|'list),
+   *         'window_slug' = 'some window slug',
+   *           (optional asset_slug or asset key; the former is a string, and
+   *           makes sense only in the context of a delete command; the latter is
+   *           a hash with 'title', 'slug', and 'storage' keys and makes sense
+   *           only for 'add' commands)
+   *       }
+   *       , ... (More commands can follow)
+   *     ]
+   *   }
+   */
+  @Override
   public void onNewInputJson(String channelName, Map<String, Object> m) {
+    int i, size;
+    Map<String, Object> asset;
+
     getLog().info("Got message on input channel " + channelName);
     getLog().debug(m);
 
@@ -313,18 +363,33 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     String type = message.getString(MessageWrapper.MESSAGE_FIELD_TYPE);
     if (MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS.equals(type)) {
       message.down(MessageWrapper.MESSAGE_FIELD_DATA);
+      message.down("commands");
 
-      Set<String> windowSlugs = message.getProperties();
-      for (String windowSlug : windowSlugs) {
-        // For asset messages the next level is a list.
-        List<Map<String, Object>> assets = message.getItem(windowSlug);
-
-        synchronized (windowAssetMap) {
-          // TODO(keith): Potentially turn the list entries into JsonNavigators
-          // to simplify code later on.
-          windowAssetMap.put(windowSlug, assets);
+      size = message.getSize();
+      for (i = 0; i < size; i++) {
+        message.down(i);
+        getLog().info("Command: " + message.getString("command"));
+  //handleCommand(String command, String window_slug, String asset_slug, Map<String, Object> asset) {
+        if (message.containsProperty("asset")) {
+            asset = Maps.newHashMap();
+            message.down("asset");
+            asset.put("title", message.getString("title"));
+            asset.put("slug", message.getString("slug"));
+            asset.put("storage", message.getString("storage"));
+            message.up();
         }
+        else {
+            asset = null;
+        }
+        handleCommand(
+            message.getString("command"),
+            message.getString("window_slug"),
+            (message.containsProperty("asset_slug") ? message.getString("asset_slug") : null),
+            asset
+        );
+        message.up();
       }
+
       getLog().debug("windowAssetMap is now " + windowAssetMap);
     }
   }
@@ -370,108 +435,85 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
   /**
    * Handles commands received either via GET requests, JSON, or ROS messages
-   * XXX BOOKMARK
    */
-  private ArrayListMultimap<String, String> handleCommand(ArrayListMultimap<String, String> params) {
+  private ArrayListMultimap<String, String>
+  handleCommand(String command, String window_slug, String asset_slug, Map<String, Object> asset) {
     ArrayListMultimap<String, String> result = ArrayListMultimap.create();
-    String[] requiredKeys = { "command", "window_slug" };
-    String command, slug;
-    JsonMapper jm = new JsonMapper();
 
-    if (!hasRequiredKeys(params, requiredKeys)) {
-        result.put("log", "Didn't find all required keys (command and window_slug) in parameter map");
-        result.put("warning", "t");
-        return result;
-    };
-
-    command = params.get("command").get(0);
-    slug = params.get("window_slug").get(0);
-    result.put("log", "Slug: " + slug + "; Command: " + command);
     if (command.equals("add")) {
-        if (params.containsKey("asset")) {
-            List<Map<String, Object>> assets;
-            if (windowAssetMap.containsKey(slug)) {
-                synchronized (windowAssetMap) {
-                    assets = windowAssetMap.get(slug);
-                }
-            }
-            else {
-                assets = new ArrayList<Map<String, Object>>();
-            }
-            for (String s : params.get("asset")) {
-
-                Map<String, Object> asset = jm.parseObject(s);
-                if (asset.containsKey("slug") && asset.containsKey("title") && asset.containsKey("storage")) {
-                    result.put("log", "Adding asset " + s);
-                    assets.add(asset);
-                }
-                else {
-                    result.put("log", "Badly formatted asset: " + s);
-                    result.put("warning", "t");
-                }
-            }
+        if (asset == null) {
+            result.put("log", "No asset supplied to add command");
+            result.put("warning", "t");
+            return result;
+        }
+        List<Map<String, Object>> assets;
+        if (windowAssetMap.containsKey(window_slug)) {
             synchronized (windowAssetMap) {
-                windowAssetMap.put(slug, assets);
+                assets = windowAssetMap.get(window_slug);
             }
         }
         else {
-            result.put("log", "No asset supplied to add command");
-            result.put("warning", "t");
+            assets = new ArrayList<Map<String, Object>>();
+        }
+        result.put("log", "Adding asset " + asset);
+        assets.add((Map<String, Object>) asset);
+        synchronized (windowAssetMap) {
+            windowAssetMap.put(window_slug, assets);
         }
     }
     else if (command.equals("delete")) {
-        if (params.containsKey("asset")) {
-            List<Map<String, Object>> assets;
-            boolean found = false;
+        List<Map<String, Object>> assets;
+        boolean found = false;
+        
+        if (asset_slug == null) {
+            result.put("log", "No asset slug supplied to delete command");
+            result.put("warning", "t");
+            return result;
+        }
 
-            if (windowAssetMap.containsKey(slug)) {
+        if (windowAssetMap.containsKey(window_slug)) {
+            synchronized (windowAssetMap) {
+                assets = windowAssetMap.get(window_slug);
+            }
+            result.put("log", "Found assets for window: " + assets);
+            ListIterator<Map<String, Object>> li = assets.listIterator();
+            Map<String, Object> m;
+            while (li.hasNext()) {
+                m = li.next();
+                if (m.containsKey("slug")) {
+                    result.put("log", "Searching for slug to delete. Found \"" + m.get("slug") + "\"");
+                    if ( m.get("slug").toString().equals(asset_slug)) {
+                        li.remove();
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (found) {
                 synchronized (windowAssetMap) {
-                    assets = windowAssetMap.get(slug);
-                }
-                result.put("log", "Found assets for window: " + assets);
-                ListIterator<Map<String, Object>> li = assets.listIterator();
-                Map<String, Object> m;
-                while (li.hasNext()) {
-                    m = li.next();
-                    if (m.containsKey("slug")) {
-                        result.put("log", "Searching for slug to delete. Found \"" + m.get("slug") + "\"");
-                        if ( m.get("slug").toString().equals(params.get("asset").get(0))) {
-                            li.remove();
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                if (found) {
-                    synchronized (windowAssetMap) {
-                        windowAssetMap.put(slug, assets);
-                    }
-                }
-                else {
-                    result.put("log", "Didn't find asset slug " + params.get("asset").get(0) + " for window " + slug);
+                    windowAssetMap.put(window_slug, assets);
                 }
             }
             else {
-                result.put("log", "Window slug " + slug + " has no assets");
+                result.put("log", "Didn't find asset slug " + asset_slug + " for window " + window_slug);
             }
         }
         else {
-            result.put("log", "No asset supplied to delete command");
-            result.put("warning", "t");
+            result.put("log", "Window slug " + window_slug + " has no assets");
         }
     }
     else if (command.equals("list")) {
         List<Map<String, Object>> assets;
-        if (windowAssetMap.containsKey(slug)) {
+        if (windowAssetMap.containsKey(window_slug)) {
             synchronized (windowAssetMap) {
-                assets = windowAssetMap.get(slug);
+                assets = windowAssetMap.get(window_slug);
             }
             for (Map<String, Object> m : assets) {
                 result.put("log", "Asset: " + m.toString());
             }
         }
         else {
-            result.put("log", "Cannot find window_slug " + slug);
+            result.put("log", "Cannot find window_slug " + window_slug);
         }
     }
     else {
@@ -527,8 +569,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       serverAssetList = Lists.newArrayList();
     }
 
-    /* XXX Change info() back to debug() */
-    getLog().info("Window " + clientWindowSlug + " has " + clientAssetSlugList + " should have " + serverAssetList);
+    getLog().debug("Window " + clientWindowSlug + " has " + clientAssetSlugList + " should have " + serverAssetList);
 
     // What Assets need <Create> KML entries?
     List<Map<String, Object>> createAssetList = Lists.newArrayList();
@@ -631,6 +672,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     output.append("</NetworkLinkControl>\n");
     output.append("</kml>\n");
 
+    getLog().info("Returning " + output.toString());
     // Write the HTTP Response to the client.
     try {
       outputStream.write(output.toString().getBytes());
