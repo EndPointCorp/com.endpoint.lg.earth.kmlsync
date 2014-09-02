@@ -1,5 +1,6 @@
 <html>
 <head>
+    <script src="../static/jquery-1.11.1.min.js"></script>
     <script type="text/javascript">
     var window_slug, add_asset, delete_asset, cmd_type, frame, sck;
     function initialize() {
@@ -7,12 +8,28 @@
         window_slug  = document.getElementById("window_slug");
         add_asset    = document.getElementById("add_asset");
         delete_asset = document.getElementById("delete_asset");
-        frame        = document.getElementById("myframe");
+        frame        = $("#myframe");
         sck          = new WebSocket("ws://" + window.location.host + "/websocket");
+
+        sck.onmessage = function(message) {
+            console.log(message.data);
+            frame.text(message.data);
+        };
     }
 
     function add() {
-        if (cmd_type.value === "JSON") {
+        if (cmd_type.value === "HTTP") {
+            $.get("http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() +
+                    "&command=add&asset=" + add_asset.value.trim()),
+                function(data, status) {
+                    if (status === 'success') {
+                        frame.text(data);
+                    }
+                }
+            );
+        }
+        else {
             var a = {
                 commands: [{
                 command: 'add',
@@ -21,15 +38,21 @@
             }]};
             sck.send(JSON.stringify(a));
         }
-        else {
-            frame.src = "http://" + window.location.host + "/modify.html?" +
-                encodeURIComponent("window_slug=" + window_slug.value.trim() +
-                    "&command=add&asset=" + add_asset.value.trim());
-        }
     }
 
     function del() {
-        if (cmd_type.value === "JSON") {
+        if (cmd_type.value === "HTTP") {
+            $.get("http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() +
+                    "&command=delete&asset_slug=" + delete_asset.value.trim()),
+                function(data, status) {
+                    if (status === 'success') {
+                        frame.text(data);
+                    }
+                }
+            );
+        }
+        else {
             var a = {
                 commands: [{
                 command: 'delete',
@@ -38,15 +61,21 @@
             }]};
             sck.send(JSON.stringify(a));
         }
-        else {
-            frame.src = "http://" + window.location.host + "/modify.html?" +
-                encodeURIComponent("window_slug=" + window_slug.value.trim() +
-                    "&command=delete&asset_slug=" + delete_asset.value.trim());
-        }
     }
 
     function list() {
-        if (cmd_type.value === "JSON") {
+        if (cmd_type.value === "HTTP") {
+            $.get("http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() + 
+                    "&command=list"),
+                function(data, status) {
+                    if (status === 'success') {
+                        frame.text(data);
+                    }
+                }
+            );
+        }
+        else {
             var a = {
                 commands: [{
                 command: 'list',
@@ -54,16 +83,31 @@
             }]};
             sck.send(JSON.stringify(a));
         }
-        else {
-            frame.src = "http://" + window.location.host + "/modify.html?" +
-                encodeURIComponent("window_slug=" + window_slug.value.trim() + 
-                    "&command=list");
-        }
     }
     </script>
 </head>
 <body onLoad="initialize()">
+    <h1>Instructions</h1>
+    <p>Connect Google Earth to this activity with two network links. The first
+    should connect to http://IS-SERVER:9000/master.kml. This should return a
+    KML document with the ID of "master", which will receive updates from
+    NetworkLinkUpdate objects. Of course, you will need to change IS-SERVER to
+    the proper host, and you may need to change the port. Do not set this link
+    to refresh.</p>
+    <p>The second networklink should connect to the same server and port, and
+    pass one parameter, "window_slug", with a name for this instance. The URL
+    might look liked this:</p>
+    <pre>http://IS-SERVER:9000/network_link_update.kml?window_slug=fred</pre>
+    <p>The
+    window_slug is important; it identifies this instance uniquely, so you can
+    add specific items to this Earth instance without adding them to all
+    instances connected to the server. Set this link to refresh regularly.</p>
+    <p>Use this test console to add or remove items from each instance. You can
+    use two methods to communicate with the server: either HTTP, or JSON
+    messages via WebSockets. These should function identically, as far as the
+    end use can see.</p>
     <h1>KMLSync Command Test Panel</h1>
+    <table><tr><td width="48%">
     <div>
     <h2>Command type</h2>
     <select id="cmd_type">
@@ -95,6 +139,8 @@
         <button onClick="list()">Click to list assets on window</button>
     </div>
     <hr />
-    <iframe id="myframe" style="width: 100%; height: 400px, border: 1px solid" />
-</bodY>
+    </td><td width="48%">
+        <div id="myframe"></div>
+    </td></tr></table>
+</body>
 </html>

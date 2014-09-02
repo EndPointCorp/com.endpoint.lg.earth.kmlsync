@@ -20,6 +20,7 @@ import com.endpoint.lg.support.message.MessageTypes;
 import com.endpoint.lg.support.message.MessageWrapper;
 
 import interactivespaces.activity.impl.web.BaseRoutableRosWebServerActivity;
+import interactivespaces.activity.component.web.WebServerActivityComponent;
 import interactivespaces.service.web.HttpResponseCode;
 import interactivespaces.service.web.server.HttpDynamicRequestHandler;
 import interactivespaces.service.web.server.HttpRequest;
@@ -41,6 +42,7 @@ import java.io.InputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.StringBuilder;
 // http://docs.oracle.com/javase/6/docs/api/index.html?java/net/URI.html
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -55,6 +57,7 @@ import java.util.Set;
  * An Activity to serve KML to Google Earth, and updates from routes.
  */
 public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
+  private static String WSOCKET_CHANNEL_ID = "__wsocket_connection_id";
 
   /**
    * A Map whose keys are Window slugs, and whose values are Asset Maps. This
@@ -189,16 +192,10 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
             asset
       );
 
-//      output.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-//      output.append("    <kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\" xmlns:kml=\"http://www.opengis.net/kml/2.2\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
-//      output.append("    <Document id=\"master\">\n");
-//      output.append("    </Document>\n");
-//      output.append("</kml>\n");
-
-      response.setContentType("text/html");
+      response.setContentType("text/plain");
       for (String s : result.get("log")) {
         getLog().info("Command result: " + s);
-        output.append("<p>" + s + "</p>\n");
+        output.append(s);
       }
       if (result.containsKey("warning")) {
         output.append("Warning");
@@ -249,7 +246,29 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
   @Override
   public void onActivityStartup() {
-    getLog().info("Activity com.endpoint.lg.earth.kmlsync startup");
+    StringBuilder sb = new StringBuilder();
+    sb.append("Activity com.endpoint.lg.earth.kmlsync startup\n");
+
+    WebServerActivityComponent wsac = getComponent(WebServerActivityComponent.COMPONENT_NAME);
+    if (wsac == null) {
+        getLog().warn("*** Couldn't get WebServerActivityComponent ***");
+    } else {
+        sb.append("Content Base Dir: " + wsac.getWebContentBaseDir().toString() + "\n");
+        sb.append("Content Path: " + wsac.getWebContentPath() + "\n");
+        sb.append("Content URL: " + wsac.getWebContentUrl() + "\n");
+        sb.append("Properties:" + "\n");
+        sb.append("    COMPONENT_DESCRIPTION: " + wsac.COMPONENT_DESCRIPTION + "\n");
+        sb.append("    COMPONENT_NAME: " + wsac.COMPONENT_NAME + "\n");
+        sb.append("    CONFIGURATION_WEBAPP_CONTENT_LOCATION: " + wsac.CONFIGURATION_WEBAPP_CONTENT_LOCATION + "\n");
+        sb.append("    CONFIGURATION_WEBAPP_WEB_SERVER_PORT: " + wsac.CONFIGURATION_WEBAPP_WEB_SERVER_PORT + "\n");
+        sb.append("    CONFIGURATION_WEBAPP_WEB_SERVER_WEBSOCKET_URI: " + wsac.CONFIGURATION_WEBAPP_WEB_SERVER_WEBSOCKET_URI + "\n");
+        sb.append("    DEFAULT_INITIAL_PAGE: " + wsac.DEFAULT_INITIAL_PAGE + "\n");
+        sb.append("    WEB_SERVER_DEFAULT_HOST: " + wsac.WEB_SERVER_DEFAULT_HOST + "\n");
+        sb.append("    WEB_SERVER_PORT_DEFAULT: " + wsac.WEB_SERVER_PORT_DEFAULT + "\n");
+        getLog().info(sb.toString());
+
+        addStaticContent("/static", new File(wsac.getWebContentBaseDir().toString()));
+    }
 
     KMLURIHost = getConfiguration().getRequiredPropertyString(
         "interactivespaces.host");
@@ -327,10 +346,13 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   @Override
   public void onWebSocketReceive(String channelName, Object d) {
     getLog().info("Received something on the websocket channel: " + d);
+    Map<String, String> obj = (Map<String, String>) d;
+    obj.put(WSOCKET_CHANNEL_ID, channelName);
     Map<String, Object> msg = Maps.newHashMap();
     msg.put(MessageWrapper.MESSAGE_FIELD_TYPE, MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS);
-    msg.put(MessageWrapper.MESSAGE_FIELD_DATA, d);
+    msg.put(MessageWrapper.MESSAGE_FIELD_DATA, obj);
     sendOutputJson("toupdate", msg);
+    getLog().info("Sending websocket message to JSON: " + msg);
   }
 
   /*
@@ -355,11 +377,21 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   public void onNewInputJson(String channelName, Map<String, Object> m) {
     int i, size;
     Map<String, Object> asset;
+    StringBuilder sb = new StringBuilder();
+    JsonNavigator message = new JsonNavigator(m);
+    String websocket;
+
+    message.down("data");
+    websocket = message.getString(WSOCKET_CHANNEL_ID);
+    message.up();
 
     getLog().info("Got message on input channel " + channelName);
     getLog().debug(m);
 
-    JsonNavigator message = new JsonNavigator(m);
+    if (websocket != null) {
+        getLog().info("Message originally from WebSocket channel " + websocket);
+    }
+
     String type = message.getString(MessageWrapper.MESSAGE_FIELD_TYPE);
     if (MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS.equals(type)) {
       message.down(MessageWrapper.MESSAGE_FIELD_DATA);
@@ -369,7 +401,6 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       for (i = 0; i < size; i++) {
         message.down(i);
         getLog().info("Command: " + message.getString("command"));
-  //handleCommand(String command, String window_slug, String asset_slug, Map<String, Object> asset) {
         if (message.containsProperty("asset")) {
             asset = Maps.newHashMap();
             message.down("asset");
@@ -381,13 +412,28 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         else {
             asset = null;
         }
-        handleCommand(
+        ArrayListMultimap<String, String> result = handleCommand(
             message.getString("command"),
             message.getString("window_slug"),
             (message.containsProperty("asset_slug") ? message.getString("asset_slug") : null),
             asset
         );
+
+        for (String s : result.get("log")) {
+            sb.append(" " + s);
+        }
+
         message.up();
+      }
+
+      for (String key : m.keySet()) {
+          getLog().info("Key: " + key);
+      }
+
+      if (websocket != null) {
+          getLog().info("Sending response to websocket: " + sb.toString());
+          sendWebSocketString(websocket, sb.toString());
+          getLog().info("Sent response " + sb.toString() + " to websocket " + websocket);
       }
 
       getLog().debug("windowAssetMap is now " + windowAssetMap);
