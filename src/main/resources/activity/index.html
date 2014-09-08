@@ -98,10 +98,14 @@
     pass one parameter, "window_slug", with a name for this instance. The URL
     might look liked this:</p>
     <pre>http://IS-SERVER:9000/network_link_update.kml?window_slug=fred</pre>
-    <p>The
-    window_slug is important; it identifies this instance uniquely, so you can
-    add specific items to this Earth instance without adding them to all
-    instances connected to the server. Set this link to refresh regularly.</p>
+    <p>The window_slug is important; it identifies this instance uniquely, so
+    you can add specific items to this Earth instance without adding them to
+    all instances connected to the server. Set this link to refresh
+    regularly.</p>
+    <p>Finally, ensure the interactivespaces.host configuration value is
+    correctly set on the Interactive Spaces controller on the head node, where
+    this activity should be installed and running. You can find this value in
+    config/container.conf in the controller's home directory.</p>
     <p>Use this test console to add or remove items from each instance. You can
     use two methods to communicate with the server: either HTTP, or JSON
     messages via WebSockets. These should function identically, as far as the
