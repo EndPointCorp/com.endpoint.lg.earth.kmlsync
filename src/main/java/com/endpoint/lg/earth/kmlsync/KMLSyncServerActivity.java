@@ -18,6 +18,8 @@ package com.endpoint.lg.earth.kmlsync;
 
 import com.endpoint.lg.support.message.MessageTypes;
 import com.endpoint.lg.support.message.MessageWrapper;
+import com.endpoint.lg.support.message.Scene;
+import com.endpoint.lg.support.message.Window;
 
 import interactivespaces.activity.impl.web.BaseRoutableRosWebServerActivity;
 import interactivespaces.activity.component.web.WebServerActivityComponent;
@@ -83,8 +85,9 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   /**
    * Configuration parameter containing the URL prefix for the asset files.
    */
-  public static final String CONFIGURATION_PROPERTY_KML_ASSET_PREFIX =
-      "lg.earth.kmlsyncserver.assetPrefix";
+   // JWT: No longer used, with ROS-based director
+//  public static final String CONFIGURATION_PROPERTY_KML_ASSET_PREFIX =
+//      "lg.earth.kmlsyncserver.assetPrefix";
 
   /**
    * Assembled URI's for Google Earth.
@@ -106,7 +109,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   /**
    * URI Prefix for asset file storage.
    */
-  String KMLAssetURIPrefix = new String();
+//  String KMLAssetURIPrefix = new String();
 
   /**
    * Handler for HTTP GET Requests from Google Earth.
@@ -249,6 +252,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     StringBuilder sb = new StringBuilder();
     sb.append("Activity com.endpoint.lg.earth.kmlsync startup\n");
 
+    // Some debug stuff that might be useful one day
     WebServerActivityComponent wsac = getComponent(WebServerActivityComponent.COMPONENT_NAME);
     if (wsac == null) {
         getLog().warn("*** Couldn't get WebServerActivityComponent ***");
@@ -280,8 +284,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         CONFIGURATION_PROPERTY_KML_MODIFY_PATH);
     KMLIndexURIPath = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_INDEX_PATH);
-    KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
-        CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
+//    KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
+//        CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
 
     WebServer webserver = getWebServer();
 
@@ -343,6 +347,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public void onWebSocketReceive(String channelName, Object d) {
     getLog().info("Received something on the websocket channel: " + d);
@@ -351,7 +356,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     Map<String, Object> msg = Maps.newHashMap();
     msg.put(MessageWrapper.MESSAGE_FIELD_TYPE, MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS);
     msg.put(MessageWrapper.MESSAGE_FIELD_DATA, obj);
-    sendOutputJson("toupdate", msg);
+    sendOutputJson("tocommand", msg);
     getLog().info("Sending websocket message to JSON: " + msg);
   }
 
@@ -375,6 +380,39 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    */
   @Override
   public void onNewInputJson(String channelName, Map<String, Object> m) {
+    getLog().info("Got message on input channel " + channelName);
+    getLog().debug(m);
+    if (channelName.equals("command"))
+        jsonCommand(m);
+    else
+        handleScene(m);
+  }
+
+  public void handleScene(Map<String, Object> m) {
+    Scene s;
+
+    try {
+        s = Scene.fromJson(jsonStringify(m));
+        for (Window w : s.windows) {
+            if (w.activity.equals("earth")) {
+                handleCommand("clear", w.getWindowSlug(), null, null);
+                getLog().debug("Cleared, and now adding assets, for " + w.getWindowSlug());
+                for (String a : w.assets) {
+                    Map<String, Object> asset = Maps.newHashMap();
+                    asset.put("title", a);
+                    asset.put("slug", a);
+                    asset.put("storage", a);
+                    handleCommand("add", w.getWindowSlug(), a, asset); 
+                }
+            }
+        }
+    }
+    catch (IOException e) {
+        getLog().error("Couldn't parse scene message", e);
+    }
+  }
+
+  public void jsonCommand(Map<String, Object> m) {
     int i, size;
     Map<String, Object> asset;
     StringBuilder sb = new StringBuilder();
@@ -384,9 +422,6 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     message.down("data");
     websocket = message.getString(WSOCKET_CHANNEL_ID);
     message.up();
-
-    getLog().info("Got message on input channel " + channelName);
-    getLog().debug(m);
 
     if (websocket != null) {
         getLog().info("Message originally from WebSocket channel " + websocket);
@@ -448,7 +483,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     if (rawQuery != null && !rawQuery.isEmpty()) {
       String[] components = rawQuery.split("\\&");
       for (String component : components) {
-        getLog().warn("Found component " + component);
+        getLog().debug("Found component " + component);
         int pos = component.indexOf('=');
         if (pos != -1) {
           String decode = component.substring(pos + 1);
@@ -505,6 +540,17 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         assets.add((Map<String, Object>) asset);
         synchronized (windowAssetMap) {
             windowAssetMap.put(window_slug, assets);
+        }
+    }
+    else if (command.equals("clear")) {
+        if (windowAssetMap.containsKey(window_slug)) {
+            synchronized (windowAssetMap) {
+                windowAssetMap.get(window_slug).clear();
+            }
+            result.put("log", "Assets for window slug '" + window_slug + "' cleared");
+        }
+        else {
+            result.put("log", "No such window slug '" + window_slug + "' found");
         }
     }
     else if (command.equals("delete")) {
@@ -695,7 +741,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
         output.append("          <Link><href>");
         // asset.storage goes here
-        output.append(KMLAssetURIPrefix + nav.getString("storage"));
+        //output.append(KMLAssetURIPrefix + nav.getString("storage"));
+        output.append(nav.getString("storage"));
         output.append("</href></Link>\n");
 
         output.append("        </NetworkLink>\n");

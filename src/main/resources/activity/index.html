@@ -40,6 +40,27 @@
         }
     }
 
+    function clearAssets() {
+        if (cmd_type.value === "HTTP") {
+            $.get("http://" + window.location.host + "/modify.html?" +
+                encodeURIComponent("window_slug=" + window_slug.value.trim() + "&command=clear"),
+                function(data, status) {
+                    if (status === 'success') {
+                        frame.text(data);
+                    }
+                }
+            );
+        }
+        else {
+            var a = {
+                commands: [{
+                command: 'clear',
+                window_slug: window_slug.value,
+            }]};
+            sck.send(JSON.stringify(a));
+        }
+    }
+
     function del() {
         if (cmd_type.value === "HTTP") {
             $.get("http://" + window.location.host + "/modify.html?" +
@@ -98,10 +119,11 @@
     pass one parameter, "window_slug", with a name for this instance. The URL
     might look liked this:</p>
     <pre>http://IS-SERVER:9000/network_link_update.kml?window_slug=fred</pre>
-    <p>The window_slug is important; it identifies this instance uniquely, so
-    you can add specific items to this Earth instance without adding them to
-    all instances connected to the server. Set this link to refresh
-    regularly.</p>
+    <p>Note that 9000 is the default web server port, but you may have changed
+    this with the space.activity.webapp.web.server.port property. Also, the
+    window_slug is important; it identifies this instance uniquely, so you can
+    add specific items to this Earth instance without adding them to all
+    instances connected to the server. Set this link to refresh regularly.</p>
     <p>Finally, ensure the interactivespaces.host configuration value is
     correctly set on the Interactive Spaces controller on the head node, where
     this activity should be installed and running. You can find this value in
@@ -141,6 +163,10 @@
     <div>
     <h2>List assets</h2>
         <button onClick="list()">Click to list assets on window</button>
+    </div>
+    <div>
+    <h2>Clear assets</h2>
+        <button onClick="clearAssets()">Click to clear assets on window</button>
     </div>
     <hr />
     </td><td width="48%">
