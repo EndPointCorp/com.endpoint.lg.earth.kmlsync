@@ -8,6 +8,59 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
   <identifyingName>com.endpoint.lg.earth.kmlsync</identifyingName>
   <version>1.0.0.dev</version>
 
+  <activity type="interactivespaces_native">
+    <name>com.endpoint.lg.earth.kmlsync</name>
+    <class>com.endpoint.lg.earth.kmlsync.KMLSyncServerActivity</class>
+
+    <configuration>
+      <property name="space.activity.group" required="false">
+        <value>generic</value>
+      </property>
+      <property name="space.activity.log.level" required="false">
+        <value>debug</value>
+      </property>
+      <property name="space.activity.ros.node.name" required="false">
+        <value>liquidgalaxy/earth/kmlsync</value>
+      </property>
+      <property name="space.activity.routes.outputs" required="false">
+        <value>tocommand</value>
+      </property>
+      <property name="space.activity.route.output.tocommand" required="false">
+        <value>/liquidgalaxy/${space.activity.group}/earth/kmlsync</value>
+      </property>
+      <property name="space.activity.routes.inputs" required="false">
+        <value>command:director</value>
+      </property>
+      <property name="space.activity.route.input.director" required="false">
+        <value>/liquidgalaxy/director/scene</value>
+      </property>
+      <property name="space.activity.route.input.command" required="false">
+        <value>/liquidgalaxy/${space.activity.group}/earth/kmlsync</value>
+      </property>
+      <property name="lg.earth.kmlsyncserver.updatePath" required="false">
+        <value>/network_link_update.kml</value>
+      </property>
+      <property name="lg.earth.kmlsyncserver.masterPath" required="false">
+        <value>/master.kml</value>
+      </property>
+      <property name="lg.earth.kmlsyncserver.modifyPath" required="false">
+        <value>/modify.html</value>
+      </property>
+      <property name="lg.earth.kmlsyncserver.indexPath" required="false">
+        <value>/Google%20Earth%20KMLSync/index.html</value>
+      </property>
+      <property name="lg.earth.kmlsyncserver.assetPrefix" required="false">
+        <value>http://lg-head/media/</value>
+      </property>
+      <property name="space.activity.webapp.content.location" required="false">
+        <value>webapp</value>
+      </property>
+      <property name="space.activity.webapp.web.server.port" required="false">
+        <value>9001</value>
+      </property>
+    </configuration>
+  </activity>
+
   <deployments>
     <deployment type="testdeploy" location="${deployment.test.deploy}" />
     <deployment type="testimport" location="${deployment.test.import}" />
