@@ -32,7 +32,7 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
         <value>command:director</value>
       </property>
       <property name="space.activity.route.input.director" required="false">
-        <value>/liquidgalaxy/director/scene</value>
+        <value>/director/scene</value>
       </property>
       <property name="space.activity.route.input.command" required="false">
         <value>/liquidgalaxy/${space.activity.group}/earth/kmlsync</value>
