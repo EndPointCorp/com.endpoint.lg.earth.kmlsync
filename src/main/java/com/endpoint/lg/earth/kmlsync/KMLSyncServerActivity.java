@@ -252,25 +252,10 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     StringBuilder sb = new StringBuilder();
     sb.append("Activity com.endpoint.lg.earth.kmlsync startup\n");
 
-    // Some debug stuff that might be useful one day
     WebServerActivityComponent wsac = getComponent(WebServerActivityComponent.COMPONENT_NAME);
     if (wsac == null) {
         getLog().warn("*** Couldn't get WebServerActivityComponent ***");
     } else {
-        sb.append("Content Base Dir: " + wsac.getWebContentBaseDir().toString() + "\n");
-        sb.append("Content Path: " + wsac.getWebContentPath() + "\n");
-        sb.append("Content URL: " + wsac.getWebContentUrl() + "\n");
-        sb.append("Properties:" + "\n");
-        sb.append("    COMPONENT_DESCRIPTION: " + wsac.COMPONENT_DESCRIPTION + "\n");
-        sb.append("    COMPONENT_NAME: " + wsac.COMPONENT_NAME + "\n");
-        sb.append("    CONFIGURATION_WEBAPP_CONTENT_LOCATION: " + wsac.CONFIGURATION_WEBAPP_CONTENT_LOCATION + "\n");
-        sb.append("    CONFIGURATION_WEBAPP_WEB_SERVER_PORT: " + wsac.CONFIGURATION_WEBAPP_WEB_SERVER_PORT + "\n");
-        sb.append("    CONFIGURATION_WEBAPP_WEB_SERVER_WEBSOCKET_URI: " + wsac.CONFIGURATION_WEBAPP_WEB_SERVER_WEBSOCKET_URI + "\n");
-        sb.append("    DEFAULT_INITIAL_PAGE: " + wsac.DEFAULT_INITIAL_PAGE + "\n");
-        sb.append("    WEB_SERVER_DEFAULT_HOST: " + wsac.WEB_SERVER_DEFAULT_HOST + "\n");
-        sb.append("    WEB_SERVER_PORT_DEFAULT: " + wsac.WEB_SERVER_PORT_DEFAULT + "\n");
-        getLog().info(sb.toString());
-
         addStaticContent("/static", new File(wsac.getWebContentBaseDir().toString()));
     }
 
