@@ -378,10 +378,17 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
     try {
         s = Scene.fromJson(jsonStringify(m));
+
+        // Clear all assets when a new scene comes in
+        for (String key : windowAssetMap.keySet()) {
+            handleCommand("clear", key, null, null);
+            getLog().debug("Cleared window slug " + key);
+        }
+
         for (Window w : s.windows) {
             if (w.activity.equals("earth")) {
-                handleCommand("clear", w.getWindowSlug(), null, null);
-                getLog().debug("Cleared, and now adding assets, for " + w.getWindowSlug());
+                //handleCommand("clear", w.getWindowSlug(), null, null);
+                getLog().debug("Adding assets for window slug " + w.getWindowSlug());
                 for (String a : w.assets) {
                     Map<String, Object> asset = Maps.newHashMap();
                     asset.put("title", a);
