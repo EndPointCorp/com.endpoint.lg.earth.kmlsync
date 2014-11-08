@@ -388,13 +388,13 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         for (Window w : s.windows) {
             if (w.activity.equals("earth")) {
                 //handleCommand("clear", w.getWindowSlug(), null, null);
-                getLog().debug("Adding assets for window slug " + w.getWindowSlug());
+                getLog().debug("Adding assets for window slug " + w.presentation_viewport);
                 for (String a : w.assets) {
                     Map<String, Object> asset = Maps.newHashMap();
                     asset.put("title", a);
                     asset.put("slug", a);
                     asset.put("storage", a);
-                    handleCommand("add", w.getWindowSlug(), a, asset); 
+                    handleCommand("add", w.presentation_viewport, a, asset);
                 }
             }
         }
@@ -548,7 +548,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     else if (command.equals("delete")) {
         List<Map<String, Object>> assets;
         boolean found = false;
-        
+
         if (asset_slug == null) {
             result.put("log", "No asset slug supplied to delete command");
             result.put("warning", "t");
