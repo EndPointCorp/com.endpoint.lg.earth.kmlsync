@@ -6,5 +6,6 @@ earth.kmlsync
     lg.earth.kmlsyncserver.masterPath       Path to "master" handler ("/master.kml")
     lg.earth.kmlsyncserver.modifyPath       Path to modification html page ("/modify.html")
     lg.earth.kmlsyncserver.indexPath        Path to index (test) page ("/Google%20Earth%20KMLSync/index.html")
+    lg.earth.kmlsyncserver.queryPath        Path to page to modify query.txt files ("/query.html")
     space.activity.webapp.content.location  Path to webapp directory (should be "webapp")
     space.activity.webapp.web.server.port   What port should the web server listen on?

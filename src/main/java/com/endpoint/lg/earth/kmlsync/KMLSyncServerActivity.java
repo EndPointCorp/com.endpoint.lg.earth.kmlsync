@@ -18,6 +18,7 @@ package com.endpoint.lg.earth.kmlsync;
 
 import com.endpoint.lg.support.message.MessageTypes;
 import com.endpoint.lg.support.message.MessageWrapper;
+import com.endpoint.lg.support.message.earthQuery.MessageTypesQuery;
 import com.endpoint.lg.support.message.Scene;
 import com.endpoint.lg.support.message.Window;
 
@@ -28,6 +29,7 @@ import interactivespaces.service.web.server.HttpDynamicRequestHandler;
 import interactivespaces.service.web.server.HttpRequest;
 import interactivespaces.service.web.server.HttpResponse;
 import interactivespaces.service.web.server.WebServer;
+import interactivespaces.util.data.json.JsonBuilder;
 import interactivespaces.util.data.json.JsonNavigator;
 import interactivespaces.util.data.json.JsonMapper;
 
@@ -82,6 +84,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       "lg.earth.kmlsyncserver.modifyPath";
   public static final String CONFIGURATION_PROPERTY_KML_INDEX_PATH =
       "lg.earth.kmlsyncserver.indexPath";
+  public static final String CONFIGURATION_PROPERTY_KML_QUERY_PATH =
+      "lg.earth.kmlsyncserver.queryPath";
   /**
    * Configuration parameter containing the URL prefix for the asset files.
    */
@@ -105,6 +109,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   String KMLUpdateURIPath = new String();
   String KMLModifyURIPath = new String();
   String KMLIndexURIPath = new String();
+  String KMLQueryURIPath = new String();
 
   /**
    * URI Prefix for asset file storage.
@@ -122,6 +127,46 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     @Override
     public void handle(HttpRequest request, HttpResponse response) {
       handleKmlUpdateRequest(request, response);
+    }
+  }
+
+  /**
+   * Query.txt page, to receive updates to /tmp/query.txt, or its equivalent.
+   * Replaces old change.php
+   * XXX for now, just support this type of query: 
+   *        http://localhost:81/change.php?query=playtour=OrganTour&amp;name=OrganTour
+   */
+  private class KMLQueryWebHandler implements HttpDynamicRequestHandler {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response) {
+        ArrayListMultimap<String, String> params = getParams(request.getUri().getQuery());
+        OutputStream outputStream = response.getOutputStream();
+        StringBuilder output = new StringBuilder();
+        JsonBuilder json = new JsonBuilder();
+        String q;
+        String[] splits;
+  
+        if (params.containsKey("query")) {
+            q = params.get("query").get(0);
+            try {
+                splits = q.split("=", 2);
+                if (splits[0].equals("playtour")) {
+                    json.put(MessageWrapper.MESSAGE_FIELD_TYPE, MessageTypesQuery.MESSAGE_TYPE_QUERYFILE_TOUR);
+                    json.newObject(MessageWrapper.MESSAGE_FIELD_DATA);
+                    json.put(MessageTypesQuery.MESSAGE_FIELD_QUERYFILE_TOUR_PLAY, Boolean.TRUE);
+                    json.put(MessageTypesQuery.MESSAGE_FIELD_QUERYFILE_TOUR_TOURNAME, splits[1]);
+                    getLog().info("JSON message from KML sync: " + json.toString());
+                    sendOutputJsonBuilder("toquery", json);
+                }
+                else {
+                    throw new Exception("KMLsync's Query handler only understands \"playtour\" commands");
+                }
+            }
+            catch (Exception e) {
+                getLog().error("KML Sync's Query handler can't do anything with this request: " + request.getUri().toString());
+                getLog().error(e);
+            }
+        }
     }
   }
 
@@ -269,6 +314,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         CONFIGURATION_PROPERTY_KML_MODIFY_PATH);
     KMLIndexURIPath = getConfiguration().getRequiredPropertyString(
         CONFIGURATION_PROPERTY_KML_INDEX_PATH);
+    KMLQueryURIPath = getConfiguration().getRequiredPropertyString(
+        CONFIGURATION_PROPERTY_KML_QUERY_PATH);
 //    KMLAssetURIPrefix = getConfiguration().getRequiredPropertyString(
 //        CONFIGURATION_PROPERTY_KML_ASSET_PREFIX);
 
@@ -298,6 +345,12 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         KMLIndexURIPath,
         false,
         new KMLIndexWebHandler()
+    );
+
+    webserver.addDynamicContentHandler(
+        KMLQueryURIPath,
+        false,
+        new KMLQueryWebHandler()
     );
 
     // Assemble and log the URI's where these services are available.
