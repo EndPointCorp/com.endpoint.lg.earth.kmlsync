@@ -17,7 +17,7 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
         <value>generic</value>
       </property>
       <property name="space.activity.log.level" required="false">
-        <value>debug</value>
+        <value>info</value>
       </property>
       <property name="space.activity.ros.node.name" required="false">
         <value>liquidgalaxy/earth/kmlsync</value>
@@ -50,7 +50,7 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
         <value>/modify.html</value>
       </property>
       <property name="lg.earth.kmlsyncserver.indexPath" required="false">
-        <value>/Google%20Earth%20KMLSync/index.html</value>
+        <value>/admin.html</value>
       </property>
       <property name="lg.earth.kmlsyncserver.queryPath" required="false">
         <value>/query.html</value>

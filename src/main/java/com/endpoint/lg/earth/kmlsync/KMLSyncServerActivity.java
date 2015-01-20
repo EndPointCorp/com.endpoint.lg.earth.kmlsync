@@ -140,12 +140,13 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     @Override
     public void handle(HttpRequest request, HttpResponse response) {
         ArrayListMultimap<String, String> params = getParams(request.getUri().getQuery());
-        OutputStream outputStream = response.getOutputStream();
-        StringBuilder output = new StringBuilder();
+        //OutputStream outputStream = response.getOutputStream();
+        //StringBuilder output = new StringBuilder();
         JsonBuilder json = new JsonBuilder();
         String q;
         String[] splits;
   
+        getLog().info("Trying to run query.txt handler");
         if (params.containsKey("query")) {
             q = params.get("query").get(0);
             try {
@@ -161,10 +162,17 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
                 else {
                     throw new Exception("KMLsync's Query handler only understands \"playtour\" commands");
                 }
+                String responseText = "<?xml version='1.0' encoding='UTF-8'?><kml />";
+
+                response.setContentType("text/plain");
+                response.setResponseCode(200); //OK
+                response.getOutputStream().write(responseText.getBytes());
+                response.getOutputStream().flush();
             }
             catch (Exception e) {
                 getLog().error("KML Sync's Query handler can't do anything with this request: " + request.getUri().toString());
                 getLog().error(e);
+                response.setResponseCode(500);
             }
         }
     }
@@ -358,7 +366,8 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       KMLMasterURI = new URI(   // seven-argument constructor
         KMLURIScheme,     // scheme
         null,             // userInfo
-        KMLURIHost,       // host
+        "localhost",      // host
+        //KMLURIHost,       // host
         KMLURIPort,       // port (type int!)
         KMLMasterURIPath, // path
         null,             // query
@@ -670,7 +679,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    */
   private void handleKmlUpdateRequest(HttpRequest request, HttpResponse response) {
     URI uri = request.getUri();
-    getLog().debug(
+    getLog().info(
         String.format("Activity com.endpoint.lg.earth.kmlsync handle URI: %s parameters: %s", uri, uri.getQuery()));
 
     // GET Parameter parsing courtesy of Keith Hughes.
@@ -810,7 +819,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     output.append("</NetworkLinkControl>\n");
     output.append("</kml>\n");
 
-    getLog().info("Returning " + output.toString());
+    getLog().debug("Returning " + output.toString());
     // Write the HTTP Response to the client.
     try {
       outputStream.write(output.toString().getBytes());
