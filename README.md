@@ -9,6 +9,7 @@ Liquid Galaxy Interactive Spaces activity providing an HTTP server that KML Netw
 Configuration variables for LG-CMS activities
 ---------------------------------------------
 
+```
 earth.kmlsync
     # Expects a defined input route to receive director messages
     lg.earth.kmlsyncserver.updatePath       Path to "update" handler ("/network_link_update.kml")
@@ -18,6 +19,7 @@ earth.kmlsync
     lg.earth.kmlsyncserver.queryPath        Path to page to modify query.txt files ("/query.html")
     space.activity.webapp.content.location  Path to webapp directory (should be "webapp")
     space.activity.webapp.web.server.port   What port should the web server listen on?
+```
 
 
 Copyright (C) 2015 Google Inc.  
