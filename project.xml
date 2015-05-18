@@ -6,7 +6,7 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
   </description>
 
   <identifyingName>com.endpoint.lg.earth.kmlsync</identifyingName>
-  <version>1.0.0.dev</version>
+  <version>1.0.1</version>
 
   <activity type="interactivespaces_native">
     <name>com.endpoint.lg.earth.kmlsync</name>

@@ -398,14 +398,14 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
   @SuppressWarnings("unchecked")
   @Override
   public void onWebSocketReceive(String channelName, Object d) {
-    getLog().info("Received something on the websocket channel: " + d);
+    getLog().debug("Received something on the websocket channel: " + d);
     Map<String, String> obj = (Map<String, String>) d;
     obj.put(WSOCKET_CHANNEL_ID, channelName);
     Map<String, Object> msg = Maps.newHashMap();
     msg.put(MessageWrapper.MESSAGE_FIELD_TYPE, MessageTypes.MESSAGE_TYPE_WINDOW_ASSETS);
     msg.put(MessageWrapper.MESSAGE_FIELD_DATA, obj);
     sendOutputJson("tocommand", msg);
-    getLog().info("Sending websocket message to JSON: " + msg);
+    getLog().debug("Sending websocket message to JSON: " + msg);
   }
 
   /*
@@ -428,7 +428,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    */
   @Override
   public void onNewInputJson(String channelName, Map<String, Object> m) {
-    getLog().info("Got message on input channel " + channelName);
+    getLog().debug("Got message on input channel " + channelName);
     getLog().debug(m);
     if (channelName.equals("command"))
         jsonCommand(m);
@@ -479,7 +479,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     message.up();
 
     if (websocket != null) {
-        getLog().info("Message originally from WebSocket channel " + websocket);
+        getLog().debug("Message originally from WebSocket channel " + websocket);
     }
 
     String type = message.getString(MessageWrapper.MESSAGE_FIELD_TYPE);
@@ -490,7 +490,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       size = message.getSize();
       for (i = 0; i < size; i++) {
         message.down(i);
-        getLog().info("Command: " + message.getString("command"));
+        getLog().debug("Command: " + message.getString("command"));
         if (message.containsProperty("asset")) {
             asset = Maps.newHashMap();
             message.down("asset");
@@ -517,13 +517,13 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       }
 
       for (String key : m.keySet()) {
-          getLog().info("Key: " + key);
+          getLog().debug("Key: " + key);
       }
 
       if (websocket != null) {
-          getLog().info("Sending response to websocket: " + sb.toString());
+          getLog().debug("Sending response to websocket: " + sb.toString());
           sendWebSocketString(websocket, sb.toString());
-          getLog().info("Sent response " + sb.toString() + " to websocket " + websocket);
+          getLog().debug("Sent response " + sb.toString() + " to websocket " + websocket);
       }
 
       getLog().debug("windowAssetMap is now " + windowAssetMap);
@@ -680,7 +680,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
    */
   private void handleKmlUpdateRequest(HttpRequest request, HttpResponse response) {
     URI uri = request.getUri();
-    getLog().info(
+    getLog().debug(
         String.format("Activity com.endpoint.lg.earth.kmlsync handle URI: %s parameters: %s", uri, uri.getQuery()));
 
     // GET Parameter parsing courtesy of Keith Hughes.
@@ -700,7 +700,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
 
     // Which Earth Window is this HTTP request coming from?
     String clientWindowSlug = params.get("window_slug").get(0);
-    getLog().info("Checking window slug " + clientWindowSlug);
+    getLog().debug("Checking window slug " + clientWindowSlug);
 
     // What Assets does this Earth Window already have loaded?
     List<String> clientAssetSlugList = params.get("asset_slug");
