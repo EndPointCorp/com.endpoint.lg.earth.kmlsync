@@ -4,14 +4,11 @@
   <description>
 KML is a file format used to display geographic data in Google Earth.  KML NetworkLinks can fetch new KML from an HTTP server such as this activity provides.  Each Google Earth Window is identified with a "slug" string, and this activity maintains a list of URL's that each Window should have loaded.
   </description>
-
   <identifyingName>com.endpoint.lg.earth.kmlsync</identifyingName>
   <version>1.0.1</version>
-
   <activity type="interactivespaces_native">
     <name>com.endpoint.lg.earth.kmlsync</name>
     <class>com.endpoint.lg.earth.kmlsync.KMLSyncServerActivity</class>
-
     <configuration>
       <property name="space.activity.group" required="false">
         <value>generic</value>
@@ -66,7 +63,6 @@ KML is a file format used to display geographic data in Google Earth.  KML Netwo
       </property>
     </configuration>
   </activity>
-
   <deployments>
     <deployment type="testdeploy" location="${deployment.test.deploy}" />
     <deployment type="testimport" location="${deployment.test.import}" />
