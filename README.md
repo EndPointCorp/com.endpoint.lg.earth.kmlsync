@@ -21,7 +21,6 @@ earth.kmlsync
     space.activity.webapp.web.server.port   What port should the web server listen on?
 ```
 
-
 Copyright (C) 2015 Google Inc.
 Copyright (C) 2015 End Point Corporation
 
