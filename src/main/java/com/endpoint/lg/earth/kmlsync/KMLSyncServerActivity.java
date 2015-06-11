@@ -30,9 +30,9 @@ import interactivespaces.service.web.server.HttpDynamicRequestHandler;
 import interactivespaces.service.web.server.HttpRequest;
 import interactivespaces.service.web.server.HttpResponse;
 import interactivespaces.service.web.server.WebServer;
-import interactivespaces.util.data.json.JsonBuilder;
-import interactivespaces.util.data.json.JsonNavigator;
-import interactivespaces.util.data.json.JsonMapper;
+import interactivespaces.util.data.json.StandardJsonBuilder;
+import interactivespaces.util.data.json.StandardJsonNavigator;
+import interactivespaces.util.data.json.StandardJsonMapper;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ArrayListMultimap;
@@ -143,7 +143,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
         ArrayListMultimap<String, String> params = getParams(request.getUri().getQuery());
         //OutputStream outputStream = response.getOutputStream();
         //StringBuilder output = new StringBuilder();
-        JsonBuilder json = new JsonBuilder();
+        StandardJsonBuilder json = new StandardJsonBuilder();
         String q;
         String[] splits;
   
@@ -235,7 +235,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       };
 
       if (params.containsKey("asset")) {
-          JsonMapper jm = new JsonMapper();
+          StandardJsonMapper jm = new StandardJsonMapper();
           asset = (Map<String, Object>) jm.parseObject(params.get("asset").get(0));
           if (!(asset.containsKey("title") && asset.containsKey("slug") && asset.containsKey("storage"))) {
               output.append("<p>Badly formatted asset. Requires title, slug, and storage keys</p>");
@@ -471,7 +471,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     int i, size;
     Map<String, Object> asset;
     StringBuilder sb = new StringBuilder();
-    JsonNavigator message = new JsonNavigator(m);
+    StandardJsonNavigator message = new StandardJsonNavigator(m);
     String websocket;
 
     message.down("data");
@@ -722,7 +722,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     List<Map<String, Object>> createAssetList = Lists.newArrayList();
     // For each Asset the server wants the client to load,
     for (Map<String, Object> serverAsset : serverAssetList) {
-      JsonNavigator nav = new JsonNavigator(serverAsset);
+      StandardJsonNavigator nav = new StandardJsonNavigator(serverAsset);
       String serverAssetSlug = nav.getString("slug");
 
       // If the client has not loaded this asset ...
@@ -738,7 +738,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     // This will see all the ones the server requires and removes them from the
     // delete list. All that will be left is the ones to delete.
     for (Map<String, Object> serverAsset : serverAssetList) {
-      JsonNavigator nav = new JsonNavigator(serverAsset);
+      StandardJsonNavigator nav = new StandardJsonNavigator(serverAsset);
       String serverAssetSlug = nav.getString("slug");
       deleteAssetSlugList.remove(serverAssetSlug);
     }
@@ -763,7 +763,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
     Joiner joiner = Joiner.on("&").skipNulls();
     List<String> cookies = Lists.newArrayList();
     for (Map<String, Object> serverAsset : serverAssetList) {
-      JsonNavigator nav = new JsonNavigator(serverAsset);
+      StandardJsonNavigator nav = new StandardJsonNavigator(serverAsset);
       String serverAssetSlug = nav.getString("slug");
       cookies.add("asset_slug=" + serverAssetSlug);
     }
@@ -781,7 +781,7 @@ public class KMLSyncServerActivity extends BaseRoutableRosWebServerActivity {
       output.append("      <Create><Document targetId=\"master\">\n");
       // For each asset the client should load but hasn't yet,
       for (Map<String, Object> asset : createAssetList) {
-        JsonNavigator nav = new JsonNavigator(asset);
+        StandardJsonNavigator nav = new StandardJsonNavigator(asset);
         //nav.down("fields");
 
         output.append("        <NetworkLink id=\"");
